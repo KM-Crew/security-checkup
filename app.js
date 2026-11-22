@@ -202,7 +202,7 @@ Router.on('/phishing', root => {
       const saidFake = b.dataset.v === 'fake';
       const ok = saidFake === item.fake;
       if (ok) correct++;
-      vibrate(ok ? 20 : [30, 40, 30]);
+      vibrate(ok ? 20 : [30, 40, 30]); Sfx.play(ok ? 'ok' : 'bad');
       $$('.judge button', box).forEach(x => x.disabled = true);
       const ex = $('.explain', box);
       ex.classList.remove('hidden');
