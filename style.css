@@ -34,3 +34,14 @@
 .stamp { margin-top: 10px; font-size: 12px; color: var(--muted); }
 .todo { padding-left: 20px; }
 .todo li { margin: 6px 0; }
+
+/* ---------- PC 화면 ---------- */
+.pc .hero { text-align: left; padding: 40px 0; }
+.pc .hero .lock { font-size: 88px; }
+.pc .tools { margin-top: 0; }
+.pc .tool { padding: 22px 24px; }
+.pc .phone { min-height: 280px; padding: 30px 24px; }
+.pc .sms { font-size: 17px; }
+.pc .judge { margin-top: 0; }
+.pc .pw-right { padding-top: 70px; }
+.pc body[data-page=about] main { max-width: 760px; }

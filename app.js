@@ -70,7 +70,9 @@ const save = () => store.sset('sc-state', state);
 
 /* ---------- 랜딩 ---------- */
 Router.on('/', root => {
-  root.append(h(`
+  const wrap = h('<div class="split s73 center"></div>');
+  root.append(wrap);
+  wrap.append(h(`
     <section class="hero">
       <div class="lock">🔒</div>
       <h1>내 보안,<br>몇 점일까?</h1>
@@ -78,7 +80,7 @@ Router.on('/', root => {
       <a class="btn primary big block" href="#/check">30초 보안 점수 받기</a>
       <p class="badge">입력한 내용은 이 기기 밖으로 나가지 않아요</p>
     </section>`));
-  root.append(h(`
+  wrap.append(h(`
     <section class="tools">
       <a class="tool card" href="#/check"><b>🧭 보안 습관 진단</b><span class="muted">계정·기기·습관 10문항</span></a>
       <a class="tool card" href="#/password"><b>🔑 비밀번호 검사</b><span class="muted">뚫리는 데 걸리는 시간</span></a>
@@ -96,11 +98,11 @@ Router.on('/check', root => {
   function render() {
     const q = QUESTIONS[i];
     box.innerHTML = `
-      <div class="row"><span class="chip">${q.cat}</span><span class="grow"></span><span class="muted small">${i + 1} / ${QUESTIONS.length}</span></div>
+      <div class="narrow"><div class="row"><span class="chip">${q.cat}</span><span class="grow"></span><span class="muted small">${i + 1} / ${QUESTIONS.length}</span></div>
       <div class="bar" style="margin:12px 0 20px"><i style="width:${(i / QUESTIONS.length) * 100}%"></i></div>
       <h2 class="q">${esc(q.q)}</h2>
       <div class="answers">${q.a.map((a, k) => `<button class="btn block answer" data-k="${k}">${esc(a[0])}</button>`).join('')}</div>
-      ${i > 0 ? '<button class="btn ghost back">← 이전</button>' : ''}`;
+      ${i > 0 ? '<button class="btn ghost back">← 이전</button>' : ''}</div>`;
     $$('.answer', box).forEach(b => b.onclick = () => {
       answers[i] = Number(b.dataset.k);
       if (++i < QUESTIONS.length) render();
@@ -152,7 +154,8 @@ const PW_COLOR = ['#e5484d', '#f76b15', '#f5a524', '#2f9e6b', '#1e7f5c'];
 
 Router.on('/password', root => {
   root.append(h(`
-    <section class="stack">
+    <section class="split">
+      <div class="stack">
       <h1>비밀번호 검사</h1>
       <p class="muted">실제 비밀번호 대신 비슷한 형태로 넣어 봐도 돼요.</p>
       <div class="pwbox">
@@ -160,8 +163,11 @@ Router.on('/password', root => {
         <button class="btn ghost" id="eye" aria-label="보기">보기</button>
       </div>
       <p class="badge">🔒 이 칸의 내용은 어디에도 전송·저장되지 않아요</p>
+      </div>
+      <div class="stack pw-right">
       <div class="card" id="out"><p class="muted">입력하면 바로 분석해요.</p></div>
       <a class="btn block" href="#/result">결과 카드 보기</a>
+      </div>
     </section>`));
   const pw = $('#pw'), out = $('#out');
   $('#eye').onclick = () => { pw.type = pw.type === 'password' ? 'text' : 'password'; $('#eye').textContent = pw.type === 'password' ? '보기' : '숨기기'; };
@@ -189,9 +195,9 @@ Router.on('/phishing', root => {
     box.innerHTML = `
       <div class="row"><b>스미싱 퀴즈</b><span class="grow"></span><span class="muted small">${i + 1} / ${QUIZ.length}</span></div>
       <div class="bar" style="margin:12px 0 20px"><i style="width:${(i / QUIZ.length) * 100}%"></i></div>
-      <div class="phone"><div class="sms">${esc(item.msg).replace(/\n/g, '<br>')}</div></div>
-      <div class="row judge"><button class="btn big grow" data-v="real">진짜 문자</button><button class="btn big grow" data-v="fake">가짜 문자</button></div>
-      <div class="explain hidden"></div>`;
+      <div class="split center"><div class="phone"><div class="sms">${esc(item.msg).replace(/\n/g, '<br>')}</div></div>
+      <div><div class="row judge"><button class="btn big grow" data-v="real">진짜 문자</button><button class="btn big grow" data-v="fake">가짜 문자</button></div>
+      <div class="explain hidden"></div></div></div>`;
     $$('.judge button', box).forEach(b => b.onclick = () => {
       const saidFake = b.dataset.v === 'fake';
       const ok = saidFake === item.fake;
@@ -236,8 +242,8 @@ Router.on('/result', root => {
   const todo = state.answers.map((k, i) => ({ i, v: QUESTIONS[i].a[k][1] })).filter(x => x.v < 10).sort((a, b) => a.v - b.v).slice(0, 3);
 
   root.append(h(`
-    <section class="stack">
-      <div class="result card" id="card">
+    <section class="split">
+      <div class="sticky"><div class="result card" id="card">
         <div class="face">${g.face}</div>
         <div class="muted small">나의 보안 등급</div>
         <div class="grade">${g.name}</div>
@@ -251,12 +257,14 @@ Router.on('/result', root => {
           ${parts.slice(1).map(p => `<div class="catrow"><span>${p.name}</span><div class="bar grow"><i style="width:${p.v}%"></i></div><b>${p.v}</b></div>`).join('')}
         </div>
         <div class="stamp">내 보안 몇 점?</div>
-      </div>
+      </div></div>
+      <div class="stack">
       ${todo.length ? `<h2>지금 바로 할 일</h2><ol class="todo">${todo.map(t => `<li>${esc(QUESTIONS[t.i].tip)}</li>`).join('')}</ol>` : '<p class="ok">할 일이 없어요. 완벽!</p>'}
       ${state.pw == null ? '<a class="btn block" href="#/password">🔑 비밀번호 검사하고 점수에 넣기</a>' : ''}
       ${state.quiz == null ? '<a class="btn block" href="#/phishing">📩 스미싱 퀴즈 풀고 점수에 넣기</a>' : ''}
       <div class="row"><button class="btn primary grow" id="save">결과 이미지 저장</button><button class="btn grow" id="share">공유하기</button></div>
       <button class="btn ghost block" id="again">처음부터 다시</button>
+      </div>
     </section>`));
   $('#save').onclick = () => saveImage($('#card'), 'my-security-score.png');
   $('#share').onclick = () => shareText('내 보안 몇 점?', `내 보안 등급은 "${g.name}" (${total}점)! 너도 해 봐`, location.href.split('#')[0]);
