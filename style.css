@@ -45,3 +45,37 @@
 .pc .judge { margin-top: 0; }
 .pc .pw-right { padding-top: 70px; }
 .pc body[data-page=about] main { max-width: 760px; }
+
+/* ---------- S11: 유출 확인·근거·캐릭터·칠하기 ---------- */
+.feats { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 12px; }
+.leakcard { gap: 8px; }
+.leakcard p { margin: 0; }
+.leakres { border-radius: 12px; padding: 10px 12px; margin-top: 4px; }
+.leakres p { margin: 4px 0 0; }
+.leakres.bad { background: #fff0f0; border: 1px solid #f5b5b7; color: #9b1c1f; }
+.leakres.good { background: #eefaf3; border: 1px solid #9fdcbf; color: #17603f; }
+.leakres.warn { background: #fff8e6; border: 1px solid #f3d38b; color: #7a5300; }
+.sent code { background: var(--accent-soft); padding: 1px 6px; border-radius: 6px; font-weight: 700; letter-spacing: .05em; }
+.src { display: block; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+.todo .src { margin-top: 2px; font-size: 12px; }
+.srclist { padding-left: 20px; display: grid; gap: 6px; }
+.srclist .muted { word-break: break-all; }
+mark.sus { background: #ffd5d6; color: #8a0f12; border-radius: 4px; padding: 0 2px; box-shadow: 0 0 0 2px #e5484d inset; }
+mark.safe { background: #d3f4e2; color: #0f5132; border-radius: 4px; padding: 0 2px; }
+.sms mark.sus { background: #e5484d; color: #fff; box-shadow: none; }
+.sms mark.safe { background: #2f9e6b; color: #fff; }
+.marklegend { margin: 6px 0 0; }
+.chars { margin-top: 20px; text-align: center; }
+.charrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+.charcell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.charcell span { color: var(--muted); font-size: 12px; word-break: keep-all; }
+.result .face { line-height: 1; }
+.result .face .gchar { animation: pop .6s cubic-bezier(.3,1.6,.5,1) both; }
+.result .face .gchar.lv0 { animation: pop .6s cubic-bezier(.3,1.6,.5,1) both, shiver .4s .6s ease-in-out 3; }
+@keyframes pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes shiver { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+.reduce-motion .result .face .gchar, .reduce-motion .hero .lock { animation: none !important; }
+.pc .feats { justify-content: flex-start; }
+.pc .chars { margin-top: 28px; }
+.pc .charcell span { font-size: 13px; }
+.explain, .phone .sms { text-align: left; }
