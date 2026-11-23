@@ -253,6 +253,40 @@ function itemRow(x) {
 }
 const sortItems = arr => arr.slice().sort((a, b) => ORDER[a.status] - ORDER[b.status]);
 
+/* 결과 이미지 칸 하나의 항목(한 줄 + 위험·주의면 고치는 법) */
+const repRow = x => `<li class="ri s-${x.status}"><span class="ico">${STATUS[x.status][0]}</span><div class="grow"><div class="rh"><b>${esc(x.name)}</b><span class="tag s-${x.status}">${STATUS[x.status][1]}</span></div>
+  ${(x.status === 'bad' || x.status === 'warn') && x.fix ? `<p>→ ${esc(x.fix)}</p>` : ''}</div></li>`;
+const repList = items => `<ul class="rlist">${sortItems(items).map(repRow).join('')}</ul>`;
+/* 16:9 결과 이미지: 위 [점수 카드 | 먼저 고칠 것 | 보안 헤더①] / 아래 [보안 헤더② | 메일·도메인 | 검사 방법] */
+function buildReport({ host, card, todo, web, dnsItems, n, date }) {
+  const w = sortItems(web), half = Math.ceil(w.length / 2);
+  const cell = (title, body, cls = '') => `<section class="rc ${cls}">${title ? `<h3>${title}</h3>` : ''}<div class="rb">${body}</div></section>`;
+  const dns = g => (dnsItems || []).filter(x => x.group === g);
+  return h(`<div class="report16" id="report">
+    ${cell('', `<div class="result">${card}</div>`, 'rc-card')}
+    ${cell('🛠️ 먼저 고칠 것', (todo.length ? `<ol class="rtodo">${todo.map(x => `<li><b>${esc(x.name)}</b><p>${esc(x.fix)}</p></li>`).join('')}</ol>` : '<p class="ok">눈에 띄는 빈틈이 없어요. 훌륭해요!</p>')
+      + `<p class="rsum">검사 ${n('bad') + n('warn') + n('ok') + n('na')}개 중 <b class="c-bad">위험 ${n('bad')}</b> · <b class="c-warn">주의 ${n('warn')}</b> · <b class="c-ok">통과 ${n('ok')}</b> · 해당 없음 ${n('na')}</p>`)}
+    ${cell('🌐 HTTPS·보안 헤더', repList(w.slice(0, half)))}
+    ${cell('🌐 HTTPS·보안 헤더 (이어서)', repList(w.slice(half)))}
+    ${cell('✉️ 메일 위조 방지 · 🏷️ 도메인 보호', dnsItems ? repList(dns('mail')) + repList(dns('domain')) : '<p>Google 공개 DNS에 연결하지 못해 이 부분은 건너뛰었어요. 점수는 웹 보안만으로 매겼어요.</p>')}
+    ${cell('🔍 검사 방법', `<p><b>${esc(host)}</b>의 공개된 응답만 확인했어요. 공격·침투 시도는 하지 않아요.</p>
+      <p>점수 = 웹 보안 70% + 메일·도메인(DNS) 30%</p>
+      <p class="rsrc">근거: Mozilla HTTP Observatory · Google 공개 DNS · RFC 7208(SPF) · RFC 7489(DMARC) · RFC 4033(DNSSEC) · RFC 8659(CAA)</p>
+      <p class="rsrc">점수가 높아도 해킹이 불가능하다는 뜻은 아니고, 로그인·게시판 같은 프로그램 자체의 취약점은 확인하지 않아요.</p>
+      <div class="rbrand">🔒 이 사이트 보안 몇 점?<span>km-crew.github.io/security-checkup · ${date} 검사</span></div>`)}
+  </div>`);
+}
+/* 칸 안이 넘치면 그 칸 글자를 조금씩 줄임(최소 11px). 넘친 칸 수를 돌려줌 */
+function fitCells(rep) {
+  let over = 0;
+  $$('.rb', rep).forEach(b => {
+    let fs = 17;
+    while (b.scrollHeight > b.clientHeight + 1 && fs > 11) { fs -= .5; b.style.fontSize = fs + 'px'; }
+    if (b.scrollHeight > b.clientHeight + 1) over++;
+  });
+  return over;
+}
+
 function renderResult(root, host, obs, dnsItems) {
   const s = totalScore(obs.scan.score, dnsItems);
   const g = GRADES.find(x => s.total >= x.min);
@@ -291,12 +325,11 @@ function renderResult(root, host, obs, dnsItems) {
     </section>`));
   bindForm(root);
   Sfx.play(g.lv >= 2 ? 'ok' : 'bad');
-  // 저장 이미지: 점수 카드 + 먼저 고칠 것 + 전체 항목·고치는 법을 한 장(폭 720px)에. 저장할 때만 화면 밖에 만들었다가 지움
+  // 저장 이미지: 16:9 한 장(1920×1080, 1.5배 저장), 3×2 칸. 저장할 때만 화면 밖에 만들었다가 지움
   $('#save').onclick = async () => {
-    const rep = h(`<div class="report" id="report"><div class="result rep-card">${card}</div><div class="stack">${details}</div>
-      <div class="rep-foot">km-crew.github.io/security-checkup · ${date} 검사</div></div>`);
+    const rep = buildReport({ host, card, todo, web, dnsItems, n, date });
     document.body.append(rep);
-    try { await saveImage(rep, `security-${host}.png`); } finally { rep.remove(); }
+    try { fitCells(rep); await saveImage(rep, `security-${host}.png`, 1.5); } finally { rep.remove(); }
   };
   $('#share').onclick = () => shareText('이 사이트 보안 몇 점?', `${host} 보안 등급은 "${g.name}" (${s.total}점)! 네 사이트도 검사해 봐`, location.href);
 }
