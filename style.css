@@ -99,3 +99,12 @@ mark.safe { background: #d3f4e2; color: #0f5132; border-radius: 4px; padding: 0 
 .pc .chars { margin-top: 28px; }
 .pc .charcell span { font-size: 13px; }
 .explain, .phone .sms { text-align: left; }
+
+/* 결과 이미지(저장할 때만 화면 밖에 만듦): 점수 카드 + 전체 항목 한 장 */
+.counts { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+.report { position: absolute; left: -10000px; top: 0; width: 720px; padding: 32px; background: var(--bg); color: var(--fg, #16161a); font-family: var(--font); }
+.report .rep-card { border-radius: 20px; padding: 24px; margin-bottom: 20px; border: 1px solid var(--line); }
+.report .rep-card .gchar { animation: none !important; width: 96px; height: 96px; }
+.report h2 { margin: 0 0 8px; }
+.report h3 { margin: 18px 0 8px; }
+.rep-foot { margin-top: 18px; text-align: center; font-size: 13px; color: var(--muted); }

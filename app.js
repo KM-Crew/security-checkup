@@ -261,32 +261,43 @@ function renderResult(root, host, obs, dnsItems) {
   const todo = sortItems(all).filter(x => x.status === 'bad' || x.status === 'warn').slice(0, 3);
   const bars = [['웹 보안', s.web], ['메일 위조 방지', s.mail], ['도메인 보호', s.domain]].filter(b => b[1] != null);
   const group = (title, items, src) => items.length ? `<h3>${title}</h3><ul class="items">${sortItems(items).map(itemRow).join('')}</ul><p class="src small">근거: ${esc(srcLine(src))}</p>` : '';
-  root.innerHTML = '';
-  root.append(h(`
-    <section class="split">
-      <div class="sticky"><div class="result card" id="card">
+  const date = new Date().toLocaleDateString('ko-KR');
+  const n = st => all.filter(x => x.status === st).length;
+  const card = `
         <div class="face">${gradeChar(g.lv)}</div>
         <div class="host">${esc(host)}</div>
         <div class="grade" style="color:${GRADE_COLOR[g.lv]}">${g.name}</div>
         <div class="score">${s.total}<small>점</small></div>
         <p>${g.line}</p>
         <div class="cats">${bars.map(([n, v]) => `<div class="catrow"><span>${n}</span><div class="bar grow"><i style="width:${v}%"></i></div><b>${v}</b></div>`).join('')}</div>
-        <div class="stamp">이 사이트 보안 몇 점? · Observatory ${esc(obs.scan.grade || '-')} · ${new Date().toLocaleDateString('ko-KR')}</div>
-      </div></div>
-      <div class="stack">
+        <div class="counts"><span class="tag s-bad">위험 ${n('bad')}</span><span class="tag s-warn">주의 ${n('warn')}</span><span class="tag s-ok">통과 ${n('ok')}</span></div>
+        <div class="stamp">이 사이트 보안 몇 점? · Observatory ${esc(obs.scan.grade || '-')} · ${date}</div>`;
+  const details = `
         ${todo.length ? `<h2>먼저 고칠 것</h2><ol class="todo">${todo.map(x => `<li><b>${esc(x.name)}</b> — ${esc(x.fix)}</li>`).join('')}</ol>` : '<p class="ok">눈에 띄는 빈틈이 없어요. 훌륭해요!</p>'}
         ${group('🌐 HTTPS·보안 헤더', web, ['obs'])}
         ${dnsItems ? group('✉️ 메일 위조 방지', dnsItems.filter(x => x.group === 'mail'), ['spf', 'dmarc', 'gdns'])
           + group('🏷️ 도메인 보호', dnsItems.filter(x => x.group === 'domain'), ['dnssec', 'caa', 'gdns'])
           : '<div class="leakres warn"><b>DNS 확인은 건너뛰었어요</b><p>Google 공개 DNS에 연결하지 못해 웹 보안 점수만으로 매겼어요.</p></div>'}
-        <p class="muted small">공개된 응답만 본 결과예요. 점수가 높아도 해킹이 불가능하다는 뜻은 아니고, 프로그램 자체의 취약점(로그인·게시판 등)은 확인하지 않아요.</p>
+        <p class="muted small">공개된 응답만 본 결과예요. 점수가 높아도 해킹이 불가능하다는 뜻은 아니고, 프로그램 자체의 취약점(로그인·게시판 등)은 확인하지 않아요.</p>`;
+  root.innerHTML = '';
+  root.append(h(`
+    <section class="split">
+      <div class="sticky"><div class="result card" id="card">${card}</div></div>
+      <div class="stack">
+        ${details}
         <div class="row"><button class="btn primary grow" id="save">결과 이미지 저장</button><button class="btn grow" id="share">공유하기</button></div>
         <div class="card stack"><b>다른 사이트도 검사하기</b>${scanForm()}</div>
       </div>
     </section>`));
   bindForm(root);
   Sfx.play(g.lv >= 2 ? 'ok' : 'bad');
-  $('#save').onclick = () => saveImage($('#card'), `security-${host}.png`);
+  // 저장 이미지: 점수 카드 + 먼저 고칠 것 + 전체 항목·고치는 법을 한 장(폭 720px)에. 저장할 때만 화면 밖에 만들었다가 지움
+  $('#save').onclick = async () => {
+    const rep = h(`<div class="report" id="report"><div class="result rep-card">${card}</div><div class="stack">${details}</div>
+      <div class="rep-foot">km-crew.github.io/security-checkup · ${date} 검사</div></div>`);
+    document.body.append(rep);
+    try { await saveImage(rep, `security-${host}.png`); } finally { rep.remove(); }
+  };
   $('#share').onclick = () => shareText('이 사이트 보안 몇 점?', `${host} 보안 등급은 "${g.name}" (${s.total}점)! 네 사이트도 검사해 봐`, location.href);
 }
 
