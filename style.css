@@ -5,10 +5,30 @@
 .badge { display: inline-block; font-size: 13px; color: #1e7f5c; background: #e6f6ee; padding: 6px 12px; border-radius: 999px; margin-top: 12px; }
 .tools { display: grid; gap: 10px; margin-top: 24px; }
 .tool { display: flex; flex-direction: column; gap: 2px; text-decoration: none; }
-.q { min-height: 3.2em; }
-.answers { display: grid; gap: 10px; margin-bottom: 16px; }
-.answer { justify-content: flex-start; text-align: left; font-weight: 600; min-height: 56px; }
-.answer:hover { border-color: var(--accent); }
+.scanform { display: flex; gap: 8px; margin-top: 16px; }
+.scanform input { flex: 1; min-width: 0; font-size: 18px; }
+.formerr { color: var(--bad, #c8262b); margin: 6px 0 0; }
+.steps { list-style: none; padding: 0; display: grid; gap: 10px; }
+.steps li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.steps li i { width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
+.steps li.done i { animation: none; border: 0; background: #2f9e6b; }
+.steps li.fail i { animation: none; border: 0; background: #e5484d; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.reduce-motion .steps li i { animation-duration: 3s; }
+.result .host { font-weight: 700; word-break: break-all; margin: 4px 0; }
+.items { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.item { display: flex; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.item .ico { font-size: 18px; line-height: 1.4; }
+.item p { margin: 2px 0 0; }
+.item.s-bad { border-color: #f5b5b7; background: #fff6f6; }
+.item.s-warn { border-color: #f3d38b; background: #fffbf0; }
+.fix { color: #1d3fb8; }
+.tag { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; flex: none; }
+.tag.s-bad { background: #ffd5d6; color: #8a0f12; }
+.tag.s-warn { background: #ffecb8; color: #7a5300; }
+.tag.s-ok { background: #d3f4e2; color: #0f5132; }
+.tag.s-na { background: var(--line); color: var(--muted); }
+.quizend { padding-top: 24px; }
 .pwbox { display: flex; gap: 8px; }
 .pwbox input { font-size: 18px; }
 .segs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 10px 0; }
@@ -29,7 +49,7 @@
 .result .score small { font-size: 20px; }
 .cats { text-align: left; margin: 16px 0 8px; display: grid; gap: 8px; }
 .catrow { display: flex; align-items: center; gap: 10px; font-size: 14px; }
-.catrow span { width: 72px; color: var(--muted); }
+.catrow span { width: 96px; color: var(--muted); }
 .catrow b { width: 30px; text-align: right; }
 .stamp { margin-top: 10px; font-size: 12px; color: var(--muted); }
 .todo { padding-left: 20px; }

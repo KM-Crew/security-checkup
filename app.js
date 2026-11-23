@@ -1,59 +1,31 @@
-/* 내 보안 몇 점? — 보안 습관 진단 · 비밀번호 검사 · 스미싱 퀴즈
-   모든 입력은 브라우저 안에서만 처리하고 네트워크로 보내지 않습니다. */
+/* 이 사이트 보안 몇 점? — 사이트 보안 검사 · (덤) 비밀번호 검사 · 스미싱 퀴즈
+   사이트 검사는 공개된 응답만 봅니다(Mozilla HTTP Observatory + Google 공개 DNS). 공격·침투 시도는 하지 않습니다.
+   비밀번호·퀴즈 입력은 브라우저 안에서만 처리합니다. */
 'use strict';
 
 /* 근거 출처: 화면에는 기관·문서 이름과 주소를 글자로만 보여 줍니다(허브 iframe 안이라 새 창·이동 링크 없음). */
 const SOURCES = {
+  obs: { short: 'Mozilla Observatory', name: 'HTTP Observatory(웹 보안 헤더 검사)', org: 'Mozilla', url: 'developer.mozilla.org/observatory' },
+  gdns: { short: 'Google 공개 DNS', name: 'DNS-over-HTTPS JSON API', org: 'Google Public DNS', url: 'developers.google.com/speed/public-dns' },
+  spf: { short: 'RFC 7208', name: 'SPF(보내는 메일 서버 지정)', org: 'IETF', url: 'rfc-editor.org/rfc/rfc7208' },
+  dmarc: { short: 'RFC 7489', name: 'DMARC(위조 메일 처리 정책)', org: 'IETF', url: 'rfc-editor.org/rfc/rfc7489' },
+  dnssec: { short: 'RFC 4033', name: 'DNSSEC(DNS 응답 서명)', org: 'IETF', url: 'rfc-editor.org/rfc/rfc4033' },
+  caa: { short: 'RFC 8659', name: 'CAA(인증서 발급 기관 지정)', org: 'IETF', url: 'rfc-editor.org/rfc/rfc8659' },
   nist: { short: 'NIST', name: 'NIST SP 800-63B 디지털 신원 지침', org: '미국 국립표준기술연구소', url: 'pages.nist.gov/800-63-4' },
+  hibp: { short: 'HIBP', name: 'Pwned Passwords(k-익명 범위 조회)', org: 'Have I Been Pwned', url: 'haveibeenpwned.com/Passwords' },
   cisa: { short: 'CISA', name: 'Secure Our World', more: '2단계 인증·비밀번호 관리자·업데이트·피싱 구별', org: '미국 사이버보안·기반시설보안청(CISA)', url: 'cisa.gov/secure-our-world' },
   kisaPhone: { short: 'KISA 보호나라', name: '스마트폰 10대 안전수칙', org: '한국인터넷진흥원(KISA) 보호나라', url: 'boho.or.kr' },
   kisaSmish: { short: 'KISA 보호나라', name: '스미싱 피해 예방 수칙', org: '한국인터넷진흥원(KISA) 보호나라', url: 'boho.or.kr' },
-  kisaRansom: { short: 'KISA 보호나라', name: '랜섬웨어 예방 수칙(중요 자료 백업)', org: '한국인터넷진흥원(KISA) 보호나라', url: 'boho.or.kr' },
   police: { short: '경찰청', name: '메신저 피싱·사이버 사기 예방', org: '경찰청 사이버수사국', url: 'ecrm.police.go.kr' },
-  fss: { short: '금융감독원', name: '보이스피싱 지킴이', org: '금융감독원', url: 'fss.or.kr' },
-  pipc: { short: '개인정보보호위원회', name: '개인정보 노출 줄이기(SNS 공개 범위)', org: '개인정보보호위원회', url: 'pipc.go.kr' },
-  hibp: { short: 'HIBP', name: 'Pwned Passwords(k-익명 범위 조회)', org: 'Have I Been Pwned', url: 'haveibeenpwned.com/Passwords' }
+  fss: { short: '금융감독원', name: '보이스피싱 지킴이', org: '금융감독원', url: 'fss.or.kr' }
 };
 const srcLine = keys => keys.map(k => SOURCES[k]).filter(Boolean).map(x => `${x.short} 「${x.name}」`).join(' · ');
 
-const QUESTIONS = [
-  { cat: '계정', q: '메일·SNS·은행 같은 중요한 계정에 2단계 인증을 켜 두었나요?',
-    a: [['전부 켜 두었어요', 10], ['일부만 켰어요', 5], ['아니요 / 그게 뭔지 몰라요', 0]],
-    tip: '중요한 계정부터 2단계 인증(인증 앱·문자)을 켜세요. 비밀번호가 새도 막아 줍니다.', src: ['cisa'] },
-  { cat: '계정', q: '여러 사이트에서 같은 비밀번호를 쓰나요?',
-    a: [['사이트마다 전부 달라요', 10], ['비슷하게 조금씩 바꿔 써요', 4], ['거의 다 같아요', 0]],
-    tip: '한 곳이 털리면 전부 털립니다. 최소한 메일·금융 계정 비밀번호는 따로 쓰세요.', src: ['nist','cisa'] },
-  { cat: '계정', q: '비밀번호 관리자(브라우저·전용 앱)를 쓰나요?',
-    a: [['네, 거기에 저장해요', 10], ['가끔 써요', 5], ['머리로 외우거나 메모장에 적어요', 0]],
-    tip: '비밀번호 관리자를 쓰면 사이트마다 긴 비밀번호를 외우지 않고도 쓸 수 있어요.', src: ['cisa'] },
-  { cat: '기기', q: '휴대폰·PC에 업데이트 알림이 뜨면?',
-    a: [['바로 설치해요', 10], ['며칠 미뤘다가 해요', 5], ['계속 "나중에"를 눌러요', 0]],
-    tip: '보안 업데이트는 이미 알려진 구멍을 막는 일입니다. 자동 업데이트를 켜 두세요.', src: ['kisaPhone','cisa'] },
-  { cat: '기기', q: '휴대폰 잠금은 어떻게 되어 있나요?',
-    a: [['생체 인식 또는 6자리 이상', 10], ['4자리 숫자 또는 패턴', 5], ['잠금이 없어요', 0]],
-    tip: '휴대폰 잠금을 6자리 이상 + 생체 인식으로 바꾸세요. 분실 시 첫 번째 방어선입니다.', src: ['kisaPhone'] },
-  { cat: '기기', q: '출처를 모르는 앱·파일(APK, exe)을 설치한 적이 있나요?',
-    a: [['없어요', 10], ['가끔 있어요', 4], ['자주 있어요', 0]],
-    tip: '앱은 공식 스토어에서만 받으세요. 문자·메신저로 온 설치 파일은 열지 마세요.', src: ['kisaPhone'] },
-  { cat: '습관', q: '문자 속 링크를 누르기 전에 어떻게 하나요?',
-    a: [['주소를 확인하거나 공식 앱으로 직접 들어가요', 10], ['아는 번호면 그냥 눌러요', 4], ['일단 눌러 봐요', 0]],
-    tip: '택배·결제·지원금 문자의 링크는 누르지 말고, 공식 앱이나 직접 검색으로 확인하세요.', src: ['kisaSmish'] },
-  { cat: '습관', q: '카페 같은 공용 와이파이에서 로그인·금융 거래를 하나요?',
-    a: [['안 해요 / 모바일 데이터로 해요', 10], ['가끔 해요', 4], ['자주 해요', 0]],
-    tip: '공용 와이파이에서는 금융·로그인을 피하고 모바일 데이터를 쓰세요.', src: ['kisaPhone'] },
-  { cat: '습관', q: '중요한 사진·파일은 백업하나요?',
-    a: [['자동 백업이 켜져 있어요', 10], ['가끔 직접 옮겨요', 5], ['따로 안 해요', 0]],
-    tip: '랜섬웨어·분실에 대비해 클라우드 자동 백업을 켜 두세요.', src: ['kisaRansom'] },
-  { cat: '습관', q: 'SNS에 생일·학교·전화번호 같은 정보를 공개해 두었나요?',
-    a: [['최소한만 공개해요', 10], ['일부 공개되어 있어요', 5], ['대부분 공개되어 있어요', 0]],
-    tip: '생일·학교·반려동물 이름은 비밀번호 찾기 질문의 단골입니다. 공개 범위를 줄이세요.', src: ['pipc'] }
-];
-
 const GRADES = [
-  { min: 90, lv: 3, name: '철벽 금고', nick: '금고 씨', face: '🛡️', line: '해커가 와도 문 앞에서 돌아갑니다.' },
-  { min: 70, lv: 2, name: '튼튼한 자물쇠', nick: '자물쇠 군', face: '🔐', line: '꽤 단단해요. 빈틈 몇 개만 막으면 금고급.' },
-  { min: 50, lv: 1, name: '삐걱대는 문', nick: '삐걱이', face: '🚪', line: '마음먹은 사람에겐 열릴 수도 있어요.' },
-  { min: 0, lv: 0, name: '활짝 열린 대문', nick: '활짝이', face: '🏚️', line: '지금 바로 아래 할 일부터 시작해요.' }
+  { min: 90, lv: 3, name: '철벽 금고', nick: '금고 씨', line: '해커가 와도 문 앞에서 돌아갈 사이트예요.' },
+  { min: 70, lv: 2, name: '튼튼한 자물쇠', nick: '자물쇠 군', line: '꽤 단단해요. 빈틈 몇 개만 막으면 금고급.' },
+  { min: 50, lv: 1, name: '삐걱대는 문', nick: '삐걱이', line: '기본은 했지만 빈틈이 보여요.' },
+  { min: 0, lv: 0, name: '활짝 열린 대문', nick: '활짝이', line: '기본 보호 장치가 많이 빠져 있어요.' }
 ];
 const GRADE_COLOR = ['#e5484d', '#f5a524', '#2f9e6b', '#2f5cff'];
 
@@ -91,115 +63,238 @@ function gradeChar(lv, size = 120) {
     ${eyes}${mouth}${extra}</svg>`;
 }
 
-/* 스미싱 퀴즈 12문제. 기관·회사 이름은 모두 지어낸 이름. mark = 해설 때 문자 안에 칠할 의심(가짜)·안심(진짜) 부분 */
-const QUIZ = [
-  { msg: '[국외발신]\n고객님 해외결제 980,000원 승인완료.\n본인 아닐 시 즉시 문의 070-1234-5678', fake: true,
-    mark: ['[국외발신]', '980,000원', '070-1234-5678'], src: ['fss'],
-    why: ['"국외발신" + 큰 금액으로 겁을 줘서 전화를 걸게 만드는 전형적인 수법', '카드사는 문의 번호로 070 번호를 쓰지 않아요', '카드사 앱에서 결제 내역을 직접 확인하세요'] },
-  { msg: '[한빛택배] 주소지 불일치로 배송이 보류되었습니다. 주소 수정: http://bit.ly/3xYz9q', fake: true,
-    mark: ['주소지 불일치', 'http://bit.ly/3xYz9q'], src: ['kisaSmish'],
-    why: ['단축 주소(bit.ly 등)로 진짜 목적지를 숨김', '택배사는 주소 수정을 문자 링크로 요구하지 않아요', '배송 조회는 택배사 공식 앱에서'] },
-  { msg: '엄마 나 폰 액정 깨져서 임시폰이야ㅠ\n급한데 문화상품권 좀 사서 번호 보내줄 수 있어?', fake: true,
-    mark: ['임시폰', '문화상품권', '번호 보내줄'], src: ['police'],
-    why: ['가족 사칭 + "임시폰" + 상품권 요구는 메신저 피싱의 3종 세트', '반드시 원래 번호로 전화해서 확인하세요'] },
-  { msg: '[하늘카드] 11월 이용대금 명세서가 발송되었습니다. 자세한 내용은 하늘카드 앱에서 확인하세요.', fake: false,
-    mark: ['하늘카드 앱에서 확인'], src: ['kisaSmish'],
-    why: ['링크 없이 공식 앱 확인만 안내', '금액·개인정보 입력을 요구하지 않음', '그래도 의심되면 앱을 직접 열어 보세요'] },
-  { msg: '[별빛은행] 인증번호 [482913]\n타인에게 절대 알려주지 마세요.', fake: false,
-    mark: ['타인에게 절대 알려주지 마세요'], src: ['fss'],
-    why: ['링크가 없는 일반적인 인증번호 문자', '단, 내가 요청하지 않았는데 왔다면 누군가 내 계정으로 시도 중일 수 있어요 → 비밀번호 변경'] },
-  { msg: '[Web발신]\n귀하의 개인정보가 유출되어 계정이 24시간 내 정지됩니다.\n즉시 본인인증: http://safe-check.kr-auth.top', fake: true,
-    mark: ['24시간 내 정지', 'http://safe-check.kr-auth.top'], src: ['kisaSmish', 'cisa'],
-    why: ['"24시간 내 정지"처럼 시간 압박을 주는 문구', '.top 같은 낯선 도메인', '공식 기관은 문자 링크로 본인인증을 요구하지 않아요'] },
-  { msg: '모바일 청첩장 보내드립니다♡\n꼭 와주세요!\nhttp://wedding-card.app/invite.apk', fake: true,
-    mark: ['invite.apk'], src: ['kisaPhone', 'kisaSmish'],
-    why: ['.apk = 앱 설치 파일. 청첩장은 설치 파일일 이유가 없어요', '설치하면 문자·연락처가 털리는 악성 앱일 수 있음'] },
-  { msg: '[동네약국] 처방약 조제가 완료되었습니다. 방문 시 신분증을 지참해 주세요.', fake: false,
-    mark: ['방문 시'], src: ['kisaSmish'],
-    why: ['링크·전화 유도·금전 요구가 없는 단순 안내', '이런 문자는 대체로 안전해요'] },
-  { msg: '[Web발신]\n[국민생활지원센터] 고물가 지원금 30만원 지급 대상자로 선정되셨습니다.\n오늘 18시 신청 마감 ▶ http://gov-support24.cc/apply', fake: true,
-    mark: ['지급 대상자로 선정', '오늘 18시 신청 마감', 'http://gov-support24.cc/apply'], src: ['kisaSmish'],
-    why: ['정부 지원금은 문자 속 링크로 신청받지 않아요. 정부 누리집을 직접 검색해 들어가세요', '"오늘 마감"으로 서두르게 만드는 문구', '.cc처럼 정부와 상관없는 도메인'] },
-  { msg: '[미래통신] 11월 이용요금 52,300원이 25일 등록하신 계좌에서 자동이체될 예정입니다. 상세 내역은 미래통신 앱에서 확인하세요.', fake: false,
-    mark: ['미래통신 앱에서 확인'], src: ['kisaSmish'],
-    why: ['링크·전화번호 없이 정해진 날짜의 자동이체만 알림', '계좌 번호·비밀번호를 묻지 않아요', '금액이 이상하면 앱이나 고객센터에 직접 확인'] },
-  { msg: '[달빛마켓] 구매자님이 안전결제로 52만원을 입금했습니다.\n판매 대금 받기(판매자 인증 필요): http://dalbit-pay.safe-trade.xyz', fake: true,
-    mark: ['안전결제', '판매자 인증 필요', 'http://dalbit-pay.safe-trade.xyz'], src: ['police'],
-    why: ['중고 거래에서 가짜 "안전결제" 주소를 보내 계좌·카드 정보를 빼 가는 수법', '진짜 안전결제는 거래 앱 안에서만 진행돼요', '앱 밖 링크로 옮기자는 순간 의심하세요'] },
-  { msg: '[한울대학교 도서관] 대출하신 도서의 반납 예정일은 내일(11/24)입니다. 연장은 도서관 앱에서 할 수 있습니다.', fake: false,
-    mark: ['도서관 앱에서'], src: ['kisaSmish'],
-    why: ['링크·결제·개인정보 요구가 없는 일정 안내', '연장도 공식 앱으로 안내해요'] }
-];
-/* 문자 속 표시할 부분 칠하기(글자는 먼저 esc 처리) */
-function markMsg(item, show) {
-  let html = esc(item.msg);
-  if (show) for (const m of item.mark || []) {
-    const e = esc(m), at = html.indexOf(e);
-    if (at >= 0) html = html.slice(0, at) + `<mark class="${item.fake ? 'sus' : 'safe'}">${e}</mark>` + html.slice(at + e.length);
-  }
-  return html.replace(/\n/g, '<br>');
+/* ---------- 사이트 검사 ---------- */
+const OBS_URL = 'https://observatory-api.mdn.mozilla.net/api/v2/analyze?host=';
+const DNS_URL = 'https://dns.google/resolve?do=true&name=';
+
+/* 입력값(주소·도메인)에서 호스트 이름만 꺼냄. IP·localhost·점 없는 이름은 거절 */
+function parseHost(input) {
+  let s = String(input || '').trim();
+  if (!s) return null;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = 'https://' + s;
+  try {
+    const host = new URL(s).hostname.toLowerCase().replace(/\.$/, '');
+    if (/^[\d.]+$/.test(host) || host.includes(':')) return null;
+    return /^(?=.{4,253}$)([a-z0-9-]{1,63}\.)+[a-z0-9-]{2,63}$/.test(host) ? host : null;
+  } catch (e) { return null; }
 }
 
-const COMMON_PW = ['123456', '12345678', '123456789', '1234', '12345', '1234567890', 'password', 'qwerty', '111111', '000000',
-  'abc123', 'iloveyou', '1q2w3e4r', '1q2w3e4r!', 'qwer1234', 'a123456', 'asdf1234', 'admin', 'welcome', 'letmein',
-  'p@ssw0rd', 'password1', 'qwerty123', 'zxcvbnm', 'sunshine', 'dragon', 'monkey', 'football', 'iloveyou1', 'q1w2e3r4'];
+async function fetchJson(url, opt = {}, timeout = 10000) {
+  const ctl = window.AbortController ? new AbortController() : null;
+  const timer = ctl && setTimeout(() => ctl.abort(), timeout);
+  try {
+    const res = await fetch(url, Object.assign({ signal: ctl && ctl.signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' }, opt));
+    return await res.json();
+  } finally { if (timer) clearTimeout(timer); }
+}
 
-const state = store.sget('sc-state', { answers: null, pw: null, quiz: null, quizN: null, pwned: null });
-const save = () => store.sset('sc-state', state);
+/* Observatory 검사 항목 → 쉬운 이름·하는 일·고치는 법 */
+const OBS_TESTS = {
+  'redirection': ['HTTP → HTTPS 전환', 'http://로 들어와도 바로 암호화된 https://로 옮겨 줘요.', 'http 요청을 같은 주소의 https로 301 전환하세요.'],
+  'strict-transport-security': ['HTTPS 강제(HSTS)', '브라우저가 이 사이트를 항상 암호화 연결로만 열게 해요.', 'Strict-Transport-Security 헤더를 max-age=31536000 이상으로 보내세요.'],
+  'content-security-policy': ['콘텐츠 보안 정책(CSP)', '허락한 곳의 스크립트만 실행되게 해서 악성 코드 끼워 넣기(XSS)를 막아요.', "Content-Security-Policy 헤더를 default-src 'self'부터 시작해 보내세요."],
+  'x-frame-options': ['클릭 가로채기 방지', '다른 사이트가 이 화면을 몰래 겹쳐 띄워 클릭을 훔치는 걸 막아요.', "CSP에 frame-ancestors 'self'를 넣거나 X-Frame-Options: DENY를 보내세요."],
+  'cookies': ['쿠키 보호', '로그인 쿠키가 도청되거나 스크립트로 빼돌려지지 않게 해요.', '쿠키에 Secure·HttpOnly·SameSite 속성을 붙이세요.'],
+  'x-content-type-options': ['파일 형식 위장 방지', '브라우저가 파일 종류를 멋대로 추측해 실행하지 않게 해요.', 'X-Content-Type-Options: nosniff를 보내세요.'],
+  'referrer-policy': ['방문 경로 노출 제한', '다른 사이트로 넘어갈 때 지금 주소(검색어 등)가 새지 않게 해요.', 'Referrer-Policy: strict-origin-when-cross-origin을 보내세요.'],
+  'subresource-integrity': ['외부 스크립트 변조 확인(SRI)', '외부에서 불러온 스크립트가 바꿔치기되지 않았는지 확인해요.', '외부 script 태그에 integrity 속성을 붙이세요.'],
+  'cross-origin-resource-sharing': ['다른 사이트의 읽기 제한(CORS)', '다른 사이트가 이 사이트 내용을 마음대로 읽어 가지 못하게 해요.', 'Access-Control-Allow-Origin: *는 공개 자료에만 쓰세요.'],
+  'cross-origin-resource-policy': ['자원 가져가기 제한(CORP)', '다른 사이트가 이 사이트의 파일을 몰래 끌어다 쓰는 걸 줄여요.', 'Cross-Origin-Resource-Policy: same-origin을 보내세요.'],
+  'cross-origin-opener-policy': ['창 분리(COOP)', '이 사이트가 연 창·연 사이트와 서로 엿보지 못하게 떼어 놓아요.', 'Cross-Origin-Opener-Policy: same-origin을 보내세요.'],
+  'cross-origin-embedder-policy': ['외부 자원 허락제(COEP)', '허락받은 외부 자원만 불러오게 해요.', 'Cross-Origin-Embedder-Policy: require-corp를 검토하세요.']
+};
+function obsItems(tests) {
+  return Object.entries(tests || {}).map(([k, t]) => {
+    const d = OBS_TESTS[k] || [k, '', ''];
+    const status = t.pass == null ? 'na' : t.pass ? 'ok' : (t.score_modifier <= -20 ? 'bad' : 'warn');
+    return { name: d[0], desc: d[1], fix: d[2], status };
+  });
+}
+
+const txtOf = r => ((r && r.Answer) || []).filter(a => a.type === 16).map(a => String(a.data).replace(/"\s*"/g, '').replace(/"/g, '').trim());
+/* DNS 항목 4개. 점수 합계 100 = SPF 25 + DMARC 35 + DNSSEC 20 + CAA 20
+   ponytail: 'www.'만 떼고 그 이름 그대로 봄(상위 도메인 상속·공개 접미사 목록 미반영). 하위 도메인 정확도가 문제 되면 상위로 거슬러 조회 */
+async function checkDns(host) {
+  const d = host.replace(/^www\./, '');
+  const q = (name, type) => fetchJson(DNS_URL + encodeURIComponent(name) + '&type=' + type, {}, 8000);
+  const [txt, dm, a, caa] = await Promise.all([q(d, 'TXT'), q('_dmarc.' + d, 'TXT'), q(d, 'A'), q(d, 'CAA')]);
+  const items = [];
+  const spf = txtOf(txt).find(t => /^v=spf1\b/i.test(t));
+  items.push(!spf ? { key: 'spf', pts: 0, status: 'bad', detail: 'SPF 기록이 없어요' }
+    : /(^|\s)\+?all\b/i.test(spf) ? { key: 'spf', pts: 0, status: 'bad', detail: '모든 서버를 허용(+all)하고 있어요' }
+    : /\?all\b/i.test(spf) ? { key: 'spf', pts: 10, status: 'warn', detail: '판단 보류(?all)로 되어 있어요' }
+    : { key: 'spf', pts: 25, status: 'ok', detail: '보내는 서버를 지정해 두었어요' });
+  const dmarc = txtOf(dm).find(t => /^v=DMARC1\b/i.test(t));
+  const p = dmarc && ((dmarc.match(/(?:^|;)\s*p\s*=\s*(\w+)/i) || [])[1] || '').toLowerCase();
+  items.push(!dmarc ? { key: 'dmarc', pts: 0, status: 'bad', detail: 'DMARC 기록이 없어요' }
+    : p === 'reject' || p === 'quarantine' ? { key: 'dmarc', pts: 35, status: 'ok', detail: `위조 메일을 ${p === 'reject' ? '거절' : '스팸함 격리'}하게 해 두었어요` }
+    : { key: 'dmarc', pts: 15, status: 'warn', detail: '기록은 있지만 위조 메일을 그냥 통과시켜요(p=none)' });
+  items.push(a && a.AD ? { key: 'dnssec', pts: 20, status: 'ok', detail: 'DNS 응답에 서명이 있어요' } : { key: 'dnssec', pts: 0, status: 'warn', detail: 'DNS 응답 서명이 없어요' });
+  items.push(((caa && caa.Answer) || []).some(x => x.type === 257) ? { key: 'caa', pts: 20, status: 'ok', detail: '인증서 발급 기관을 정해 두었어요' } : { key: 'caa', pts: 0, status: 'warn', detail: '아무 기관이나 인증서를 발급할 수 있어요' });
+  return items.map(x => Object.assign(x, DNS_INFO[x.key]));
+}
+const DNS_INFO = {
+  spf: { group: 'mail', name: '보내는 메일 서버 지정(SPF)', desc: '이 도메인 이름으로 메일을 보낼 수 있는 서버를 정해 둬요.', fix: 'TXT 기록에 v=spf1 … -all 을 넣으세요. 메일을 안 쓰면 v=spf1 -all.', src: 'spf' },
+  dmarc: { group: 'mail', name: '위조 메일 차단 정책(DMARC)', desc: '이 사이트를 사칭한 피싱 메일을 받는 쪽에서 걸러 내게 해요.', fix: '_dmarc TXT 기록에 v=DMARC1; p=quarantine(또는 reject)을 넣으세요.', src: 'dmarc' },
+  dnssec: { group: 'domain', name: 'DNS 위조 방지(DNSSEC)', desc: '가짜 DNS 응답으로 엉뚱한 서버에 접속되는 걸 막아요.', fix: '도메인 등록 업체·DNS 업체 설정에서 DNSSEC을 켜세요.', src: 'dnssec' },
+  caa: { group: 'domain', name: '인증서 발급 기관 지정(CAA)', desc: '정해 둔 기관만 이 도메인의 HTTPS 인증서를 발급할 수 있어요.', fix: 'CAA 기록에 쓰는 인증 기관(예: 0 issue "letsencrypt.org")을 넣으세요.', src: 'caa' }
+};
+
+const OBS_ERR = {
+  'invalid-hostname-lookup': '이 주소를 찾을 수 없어요. 철자를 확인해 주세요.',
+  'invalid-site': '검사할 수 없는 주소예요. 예: example.com',
+  'site-down': '사이트가 응답하지 않아요. 잠시 뒤 다시 해 보세요.'
+};
+const STATUS = { bad: ['❌', '위험'], warn: ['⚠️', '주의'], ok: ['✅', '통과'], na: ['➖', '해당 없음'] };
+const ORDER = { bad: 0, warn: 1, ok: 2, na: 3 };
+
+/* 점수: 웹 보안(Observatory 점수, 100 상한) 70% + DNS 30%. DNS 조회가 실패하면 웹 보안만 */
+function totalScore(obsScore, dnsItems) {
+  const web = clamp(Math.round(obsScore), 0, 100);
+  if (!dnsItems) return { total: web, web, mail: null, domain: null };
+  const sum = g => dnsItems.filter(x => x.group === g).reduce((s, x) => s + x.pts, 0);
+  const dns = sum('mail') + sum('domain');
+  return { total: Math.round(web * 0.7 + dns * 0.3), web, mail: Math.round(sum('mail') / 60 * 100), domain: Math.round(sum('domain') / 40 * 100) };
+}
 
 /* ---------- 랜딩 ---------- */
+const scanForm = (value = '') => `
+  <form class="scanform" id="scanform" novalidate>
+    <input id="site" type="url" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="example.com" value="${esc(value)}" aria-label="검사할 사이트 주소">
+    <button class="btn primary" type="submit">검사</button>
+  </form>
+  <p class="formerr small hidden" id="formerr" role="alert">사이트 주소를 확인해 주세요. 예: example.com</p>`;
+function bindForm(root) {
+  $('#scanform', root).onsubmit = e => {
+    e.preventDefault();
+    const host = parseHost($('#site', root).value);
+    if (!host) { $('#formerr', root).classList.remove('hidden'); $('#site', root).focus(); return; }
+    Router.go('/scan?host=' + encodeURIComponent(host));
+  };
+}
+
 Router.on('/', root => {
   const wrap = h('<div class="split s73 center"></div>');
   root.append(wrap);
   wrap.append(h(`
     <section class="hero">
       <div class="lock">🔒</div>
-      <h1>내 보안,<br>몇 점일까?</h1>
-      <p class="muted">10문항, 30초면 끝. 해커 눈으로 본 내 빈틈을 알려 드려요.</p>
-      <a class="btn primary big block" href="#/check">30초 보안 점수 받기</a>
-      <p class="badge">입력한 내용은 이 기기 밖으로 나가지 않아요</p>
-      <div class="feats"><span class="chip">🕵️ 비밀번호 유출 확인</span><span class="chip">📩 스미싱 퀴즈 12문제</span><span class="chip">📚 공식 근거 표시</span></div>
+      <h1>이 사이트,<br>보안 몇 점?</h1>
+      <p class="muted">주소만 넣으면 HTTPS·보안 헤더·메일 위조 방지까지 16가지를 살펴보고 점수를 매겨요.</p>
+      ${scanForm()}
+      <p class="badge">공개된 응답만 봐요 · 공격이나 침투 시도는 하지 않아요</p>
+      <div class="feats"><span class="chip">🌐 보안 헤더 12종</span><span class="chip">✉️ 메일 위조 방지</span><span class="chip">🛠️ 고치는 법까지</span></div>
     </section>`));
   wrap.append(h(`
     <section class="tools">
-      <a class="tool card" href="#/check"><b>🧭 보안 습관 진단</b><span class="muted">계정·기기·습관 10문항</span></a>
-      <a class="tool card" href="#/password"><b>🔑 비밀번호 검사</b><span class="muted">뚫리는 데 걸리는 시간</span></a>
+      <b class="muted small">덤으로 해 보기</b>
+      <a class="tool card" href="#/password"><b>🔑 비밀번호 검사</b><span class="muted">뚫리는 데 걸리는 시간·유출 이력</span></a>
       <a class="tool card" href="#/phishing"><b>📩 스미싱 퀴즈</b><span class="muted">진짜 문자일까, 가짜일까?</span></a>
     </section>`));
   root.append(h(`
     <section class="chars card">
-      <b>나는 어떤 자물쇠일까?</b>
+      <b>이 사이트는 어떤 자물쇠일까?</b>
       <div class="charrow">${GRADES.map(g => `<div class="charcell">${gradeChar(g.lv, 72)}<span class="small">${g.name}</span></div>`).join('')}</div>
     </section>`));
-  root.append(h(`<p class="center small"><a href="#/about" class="muted">어떻게 처리되나요? · 근거 출처</a></p>`));
+  root.append(h(`<p class="center small"><a href="#/about" class="muted">어떻게 검사하나요? · 근거 출처</a></p>`));
+  bindForm(root);
 });
 
-/* ---------- 진단 ---------- */
-Router.on('/check', root => {
-  const answers = [];
-  let i = 0;
-  const box = h('<section></section>');
+/* ---------- 검사 중 → 결과 ---------- */
+Router.on('/scan', (root, params) => {
+  const host = parseHost(params.get('host'));
+  if (!host) { Router.go('/'); return; }
+  let alive = true;
+  const box = h(`
+    <section class="narrow stack scanning" aria-live="polite">
+      <h1 class="center">🔍 ${esc(host)}</h1>
+      <ol class="steps">
+        <li id="st-web"><i></i>HTTPS·보안 헤더 12종 확인<span class="muted small"> · Mozilla Observatory</span></li>
+        <li id="st-dns"><i></i>메일 위조 방지·도메인 보호 확인<span class="muted small"> · Google 공개 DNS</span></li>
+      </ol>
+      <p class="muted small center">보통 5~20초 걸려요. 공개된 응답만 확인해요.</p>
+    </section>`);
   root.append(box);
-  function render() {
-    const q = QUESTIONS[i];
-    box.innerHTML = `
-      <div class="narrow"><div class="row"><span class="chip">${q.cat}</span><span class="grow"></span><span class="muted small">${i + 1} / ${QUESTIONS.length}</span></div>
-      <div class="bar" style="margin:12px 0 20px"><i style="width:${(i / QUESTIONS.length) * 100}%"></i></div>
-      <h2 class="q">${esc(q.q)}</h2>
-      <div class="answers">${q.a.map((a, k) => `<button class="btn block answer" data-k="${k}">${esc(a[0])}</button>`).join('')}</div>
-      ${i > 0 ? '<button class="btn ghost back">← 이전</button>' : ''}</div>`;
-    $$('.answer', box).forEach(b => b.onclick = () => {
-      answers[i] = Number(b.dataset.k);
-      if (++i < QUESTIONS.length) render();
-      else { state.answers = answers; save(); Router.go('/result'); }
-    });
-    const back = $('.back', box);
-    if (back) back.onclick = () => { i--; render(); };
-  }
-  render();
+  const done = (id, ok) => { const li = $('#' + id, box); if (li) li.className = ok ? 'done' : 'fail'; };
+  const obsP = fetchJson(OBS_URL + encodeURIComponent(host), { method: 'POST' }, 45000)
+    .then(r => { if (!r || r.error || !r.scan || r.scan.error) throw Object.assign(new Error('obs'), { code: (r && (r.error || (r.scan && r.scan.error))) || 'unknown' }); return r; });
+  const dnsP = checkDns(host).catch(() => null);
+  obsP.then(() => alive && done('st-web', true), () => alive && done('st-web', false));
+  dnsP.then(r => alive && done('st-dns', !!r));
+  Promise.allSettled([obsP, dnsP]).then(([o, d]) => {
+    if (!alive) return;
+    if (o.status === 'rejected') return renderFail(root, host, o.reason);
+    renderResult(root, host, o.value, d.value);
+  });
+  return () => { alive = false; };
 });
 
-/* ---------- 비밀번호 ---------- */
+function renderFail(root, host, err) {
+  const code = err && err.code;
+  root.innerHTML = '';
+  root.append(h(`
+    <section class="narrow stack center">
+      <div class="hero"><div class="lock">🤔</div></div>
+      <h2>${esc(host)} 검사를 못 했어요</h2>
+      <p class="muted">${esc(OBS_ERR[code] || '검사 서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 해 보세요.')}</p>
+      ${scanForm(host)}
+    </section>`));
+  bindForm(root);
+  Sfx.play('bad');
+}
+
+function itemRow(x) {
+  const [icon, label] = STATUS[x.status];
+  return `<li class="item s-${x.status}"><span class="ico" aria-hidden="true">${icon}</span><div class="grow">
+    <div class="row"><b>${esc(x.name)}</b><span class="grow"></span><span class="tag s-${x.status}">${label}</span></div>
+    <p class="small muted">${esc(x.detail ? x.detail + ' · ' + x.desc : x.desc)}</p>
+    ${(x.status === 'bad' || x.status === 'warn') && x.fix ? `<p class="small fix">고치는 법: ${esc(x.fix)}</p>` : ''}
+  </div></li>`;
+}
+const sortItems = arr => arr.slice().sort((a, b) => ORDER[a.status] - ORDER[b.status]);
+
+function renderResult(root, host, obs, dnsItems) {
+  const s = totalScore(obs.scan.score, dnsItems);
+  const g = GRADES.find(x => s.total >= x.min);
+  const web = obsItems(obs.tests);
+  const all = web.concat(dnsItems || []);
+  const todo = sortItems(all).filter(x => x.status === 'bad' || x.status === 'warn').slice(0, 3);
+  const bars = [['웹 보안', s.web], ['메일 위조 방지', s.mail], ['도메인 보호', s.domain]].filter(b => b[1] != null);
+  const group = (title, items, src) => items.length ? `<h3>${title}</h3><ul class="items">${sortItems(items).map(itemRow).join('')}</ul><p class="src small">근거: ${esc(srcLine(src))}</p>` : '';
+  root.innerHTML = '';
+  root.append(h(`
+    <section class="split">
+      <div class="sticky"><div class="result card" id="card">
+        <div class="face">${gradeChar(g.lv)}</div>
+        <div class="host">${esc(host)}</div>
+        <div class="grade" style="color:${GRADE_COLOR[g.lv]}">${g.name}</div>
+        <div class="score">${s.total}<small>점</small></div>
+        <p>${g.line}</p>
+        <div class="cats">${bars.map(([n, v]) => `<div class="catrow"><span>${n}</span><div class="bar grow"><i style="width:${v}%"></i></div><b>${v}</b></div>`).join('')}</div>
+        <div class="stamp">이 사이트 보안 몇 점? · Observatory ${esc(obs.scan.grade || '-')} · ${new Date().toLocaleDateString('ko-KR')}</div>
+      </div></div>
+      <div class="stack">
+        ${todo.length ? `<h2>먼저 고칠 것</h2><ol class="todo">${todo.map(x => `<li><b>${esc(x.name)}</b> — ${esc(x.fix)}</li>`).join('')}</ol>` : '<p class="ok">눈에 띄는 빈틈이 없어요. 훌륭해요!</p>'}
+        ${group('🌐 HTTPS·보안 헤더', web, ['obs'])}
+        ${dnsItems ? group('✉️ 메일 위조 방지', dnsItems.filter(x => x.group === 'mail'), ['spf', 'dmarc', 'gdns'])
+          + group('🏷️ 도메인 보호', dnsItems.filter(x => x.group === 'domain'), ['dnssec', 'caa', 'gdns'])
+          : '<div class="leakres warn"><b>DNS 확인은 건너뛰었어요</b><p>Google 공개 DNS에 연결하지 못해 웹 보안 점수만으로 매겼어요.</p></div>'}
+        <p class="muted small">공개된 응답만 본 결과예요. 점수가 높아도 해킹이 불가능하다는 뜻은 아니고, 프로그램 자체의 취약점(로그인·게시판 등)은 확인하지 않아요.</p>
+        <div class="row"><button class="btn primary grow" id="save">결과 이미지 저장</button><button class="btn grow" id="share">공유하기</button></div>
+        <div class="card stack"><b>다른 사이트도 검사하기</b>${scanForm()}</div>
+      </div>
+    </section>`));
+  bindForm(root);
+  Sfx.play(g.lv >= 2 ? 'ok' : 'bad');
+  $('#save').onclick = () => saveImage($('#card'), `security-${host}.png`);
+  $('#share').onclick = () => shareText('이 사이트 보안 몇 점?', `${host} 보안 등급은 "${g.name}" (${s.total}점)! 네 사이트도 검사해 봐`, location.href);
+}
+
+/* ---------- (덤) 비밀번호 ---------- */
+const COMMON_PW = ['123456', '12345678', '123456789', '1234', '12345', '1234567890', 'password', 'qwerty', '111111', '000000',
+  'abc123', 'iloveyou', '1q2w3e4r', '1q2w3e4r!', 'qwer1234', 'a123456', 'asdf1234', 'admin', 'welcome', 'letmein',
+  'p@ssw0rd', 'password1', 'qwerty123', 'zxcvbnm', 'sunshine', 'dragon', 'monkey', 'football', 'iloveyou1', 'q1w2e3r4'];
+
 function analyzePassword(pw) {
   if (!pw) return null;
   const lower = pw.toLowerCase();
@@ -237,9 +332,7 @@ function humanTime(s) {
 const PW_LABEL = ['매우 약함', '약함', '보통', '강함', '매우 강함'];
 const PW_COLOR = ['#e5484d', '#f76b15', '#f5a524', '#2f9e6b', '#1e7f5c'];
 
-/* ---------- 유출 확인(Have I Been Pwned, k-익명) ----------
-   비밀번호는 보내지 않습니다. 브라우저에서 SHA-1 해시를 만든 뒤 앞 5자리만 보내고,
-   돌아온 수백 개의 뒷자리 목록과 내 해시 뒷자리를 이 기기 안에서 비교합니다. */
+/* 유출 확인(Have I Been Pwned, k-익명): 비밀번호는 보내지 않고 SHA-1 해시 앞 5자리만 보낸 뒤 이 기기에서 비교 */
 const HIBP_URL = 'https://api.pwnedpasswords.com/range/';
 async function sha1Hex(str) {
   if (!(window.crypto && crypto.subtle)) throw new Error('nosubtle');
@@ -288,7 +381,7 @@ Router.on('/password', root => {
         <button class="btn block" id="leakbtn" disabled>유출 이력 확인하기</button>
         <div id="leak" aria-live="polite"></div>
       </div>
-      <a class="btn block" href="#/result">결과 카드 보기</a>
+      <a class="btn block" href="#/">🔒 사이트 보안 검사하러 가기</a>
       <p class="src small">근거: ${esc(srcLine(['nist', 'hibp']))}</p>
       </div>
     </section>`));
@@ -300,7 +393,6 @@ Router.on('/password', root => {
     leakBtn.disabled = !r;
     if (!r) { out.innerHTML = '<p class="muted">입력하면 바로 분석해요.</p>'; return; }
     if (pwned > 0) { r.level = 0; r.seconds = 0; r.issues.unshift(`실제 유출 목록에 ${fmtN(pwned)}번 나온 비밀번호예요. 해커는 이 목록부터 대입해요`); }
-    state.pw = r.level; state.pwned = pwned; save();
     out.innerHTML = `
       <div class="row"><b style="color:${PW_COLOR[r.level]}">${PW_LABEL[r.level]}</b><span class="grow"></span><span class="muted small">${pw.value.length}자</span></div>
       <div class="segs">${[0, 1, 2, 3, 4].map(k => `<i style="background:${k <= r.level ? PW_COLOR[r.level] : 'var(--line)'}"></i>`).join('')}</div>
@@ -332,11 +424,70 @@ Router.on('/password', root => {
   return () => { seq++; pw.value = ''; };
 });
 
-/* ---------- 스미싱 퀴즈 ---------- */
+/* ---------- (덤) 스미싱 퀴즈 12문제. 기관·회사 이름은 모두 지어낸 이름 ---------- */
+const QUIZ = [
+  { msg: '[국외발신]\n고객님 해외결제 980,000원 승인완료.\n본인 아닐 시 즉시 문의 070-1234-5678', fake: true,
+    mark: ['[국외발신]', '980,000원', '070-1234-5678'], src: ['fss'],
+    why: ['"국외발신" + 큰 금액으로 겁을 줘서 전화를 걸게 만드는 전형적인 수법', '카드사는 문의 번호로 070 번호를 쓰지 않아요', '카드사 앱에서 결제 내역을 직접 확인하세요'] },
+  { msg: '[한빛택배] 주소지 불일치로 배송이 보류되었습니다. 주소 수정: http://bit.ly/3xYz9q', fake: true,
+    mark: ['주소지 불일치', 'http://bit.ly/3xYz9q'], src: ['kisaSmish'],
+    why: ['단축 주소(bit.ly 등)로 진짜 목적지를 숨김', '택배사는 주소 수정을 문자 링크로 요구하지 않아요', '배송 조회는 택배사 공식 앱에서'] },
+  { msg: '엄마 나 폰 액정 깨져서 임시폰이야ㅠ\n급한데 문화상품권 좀 사서 번호 보내줄 수 있어?', fake: true,
+    mark: ['임시폰', '문화상품권', '번호 보내줄'], src: ['police'],
+    why: ['가족 사칭 + "임시폰" + 상품권 요구는 메신저 피싱의 3종 세트', '반드시 원래 번호로 전화해서 확인하세요'] },
+  { msg: '[하늘카드] 11월 이용대금 명세서가 발송되었습니다. 자세한 내용은 하늘카드 앱에서 확인하세요.', fake: false,
+    mark: ['하늘카드 앱에서 확인'], src: ['kisaSmish'],
+    why: ['링크 없이 공식 앱 확인만 안내', '금액·개인정보 입력을 요구하지 않음', '그래도 의심되면 앱을 직접 열어 보세요'] },
+  { msg: '[별빛은행] 인증번호 [482913]\n타인에게 절대 알려주지 마세요.', fake: false,
+    mark: ['타인에게 절대 알려주지 마세요'], src: ['fss'],
+    why: ['링크가 없는 일반적인 인증번호 문자', '단, 내가 요청하지 않았는데 왔다면 누군가 내 계정으로 시도 중일 수 있어요 → 비밀번호 변경'] },
+  { msg: '[Web발신]\n귀하의 개인정보가 유출되어 계정이 24시간 내 정지됩니다.\n즉시 본인인증: http://safe-check.kr-auth.top', fake: true,
+    mark: ['24시간 내 정지', 'http://safe-check.kr-auth.top'], src: ['kisaSmish', 'cisa'],
+    why: ['"24시간 내 정지"처럼 시간 압박을 주는 문구', '.top 같은 낯선 도메인', '공식 기관은 문자 링크로 본인인증을 요구하지 않아요'] },
+  { msg: '모바일 청첩장 보내드립니다♡\n꼭 와주세요!\nhttp://wedding-card.app/invite.apk', fake: true,
+    mark: ['invite.apk'], src: ['kisaPhone', 'kisaSmish'],
+    why: ['.apk = 앱 설치 파일. 청첩장은 설치 파일일 이유가 없어요', '설치하면 문자·연락처가 털리는 악성 앱일 수 있음'] },
+  { msg: '[동네약국] 처방약 조제가 완료되었습니다. 방문 시 신분증을 지참해 주세요.', fake: false,
+    mark: ['방문 시'], src: ['kisaSmish'],
+    why: ['링크·전화 유도·금전 요구가 없는 단순 안내', '이런 문자는 대체로 안전해요'] },
+  { msg: '[Web발신]\n[국민생활지원센터] 고물가 지원금 30만원 지급 대상자로 선정되셨습니다.\n오늘 18시 신청 마감 ▶ http://gov-support24.cc/apply', fake: true,
+    mark: ['지급 대상자로 선정', '오늘 18시 신청 마감', 'http://gov-support24.cc/apply'], src: ['kisaSmish'],
+    why: ['정부 지원금은 문자 속 링크로 신청받지 않아요. 정부 누리집을 직접 검색해 들어가세요', '"오늘 마감"으로 서두르게 만드는 문구', '.cc처럼 정부와 상관없는 도메인'] },
+  { msg: '[미래통신] 11월 이용요금 52,300원이 25일 등록하신 계좌에서 자동이체될 예정입니다. 상세 내역은 미래통신 앱에서 확인하세요.', fake: false,
+    mark: ['미래통신 앱에서 확인'], src: ['kisaSmish'],
+    why: ['링크·전화번호 없이 정해진 날짜의 자동이체만 알림', '계좌 번호·비밀번호를 묻지 않아요', '금액이 이상하면 앱이나 고객센터에 직접 확인'] },
+  { msg: '[달빛마켓] 구매자님이 안전결제로 52만원을 입금했습니다.\n판매 대금 받기(판매자 인증 필요): http://dalbit-pay.safe-trade.xyz', fake: true,
+    mark: ['안전결제', '판매자 인증 필요', 'http://dalbit-pay.safe-trade.xyz'], src: ['police'],
+    why: ['중고 거래에서 가짜 "안전결제" 주소를 보내 계좌·카드 정보를 빼 가는 수법', '진짜 안전결제는 거래 앱 안에서만 진행돼요', '앱 밖 링크로 옮기자는 순간 의심하세요'] },
+  { msg: '[한울대학교 도서관] 대출하신 도서의 반납 예정일은 내일(11/24)입니다. 연장은 도서관 앱에서 할 수 있습니다.', fake: false,
+    mark: ['도서관 앱에서'], src: ['kisaSmish'],
+    why: ['링크·결제·개인정보 요구가 없는 일정 안내', '연장도 공식 앱으로 안내해요'] }
+];
+/* 문자 속 표시할 부분 칠하기(글자는 먼저 esc 처리) */
+function markMsg(item, show) {
+  let html = esc(item.msg);
+  if (show) for (const m of item.mark || []) {
+    const e = esc(m), at = html.indexOf(e);
+    if (at >= 0) html = html.slice(0, at) + `<mark class="${item.fake ? 'sus' : 'safe'}">${e}</mark>` + html.slice(at + e.length);
+  }
+  return html.replace(/\n/g, '<br>');
+}
+
 Router.on('/phishing', root => {
   let i = 0, correct = 0;
   const box = h('<section></section>');
   root.append(box);
+  function finish() {
+    const pct = Math.round(correct / QUIZ.length * 100);
+    box.innerHTML = `
+      <div class="narrow stack center quizend">
+        <h1>스미싱 판별력 ${pct}점</h1>
+        <p class="muted">${QUIZ.length}문제 중 ${correct}문제를 맞혔어요. ${pct >= 90 ? '사기꾼이 울고 가겠어요!' : pct >= 70 ? '꽤 날카로워요.' : '링크 누르기 전에 한 번 더 의심해요.'}</p>
+        <button class="btn block" id="retry">다시 풀기</button>
+        <a class="btn primary block" href="#/">🔒 사이트 보안 검사하러 가기</a>
+      </div>`;
+    $('#retry', box).onclick = () => { i = 0; correct = 0; render(); };
+  }
   function render() {
     const item = QUIZ[i];
     box.innerHTML = `
@@ -346,8 +497,7 @@ Router.on('/phishing', root => {
       <div><div class="row judge"><button class="btn big grow" data-v="real">진짜 문자</button><button class="btn big grow" data-v="fake">가짜 문자</button></div>
       <div class="explain hidden"></div></div></div>`;
     $$('.judge button', box).forEach(b => b.onclick = () => {
-      const saidFake = b.dataset.v === 'fake';
-      const ok = saidFake === item.fake;
+      const ok = (b.dataset.v === 'fake') === item.fake;
       if (ok) correct++;
       vibrate(ok ? 20 : [30, 40, 30]); Sfx.play(ok ? 'ok' : 'bad');
       $$('.judge button', box).forEach(x => x.disabled = true);
@@ -362,82 +512,28 @@ Router.on('/phishing', root => {
           <p class="src small">근거: ${esc(srcLine(item.src || []))}</p>
         </div>
         <button class="btn primary block next">${i + 1 < QUIZ.length ? '다음 문자' : '결과 보기'}</button>`;
-      $('.next', box).onclick = () => {
-        if (++i < QUIZ.length) render();
-        else { state.quiz = correct; state.quizN = QUIZ.length; save(); Router.go('/result'); }
-      };
+      $('.next', box).onclick = () => { if (++i < QUIZ.length) render(); else finish(); };
     });
   }
   render();
-});
-
-/* ---------- 결과 ---------- */
-function habitScore() {
-  if (!state.answers) return null;
-  return state.answers.reduce((s, k, i) => s + QUESTIONS[i].a[k][1], 0);
-}
-Router.on('/result', root => {
-  const habit = habitScore();
-  if (habit == null) {
-    root.append(h(`<section class="stack center"><h2>아직 진단을 안 했어요</h2><p class="muted">10문항만 답하면 점수가 나와요.</p><a class="btn primary block" href="#/check">진단 시작</a></section>`));
-    return;
-  }
-  const parts = [{ name: '보안 습관', v: habit }];
-  if (state.pw != null) parts.push({ name: '비밀번호', v: state.pwned > 0 ? 0 : [10, 35, 60, 85, 100][state.pw] });
-  if (state.quiz != null) parts.push({ name: '스미싱 판별', v: Math.min(100, Math.round(state.quiz / (state.quizN || QUIZ.length) * 100)) });
-  const total = Math.round(parts.reduce((s, p) => s + p.v, 0) / parts.length);
-  const g = GRADES.find(x => total >= x.min);
-  const cats = {};
-  QUESTIONS.forEach((q, i) => { (cats[q.cat] = cats[q.cat] || []).push(q.a[state.answers[i]][1]); });
-  const todo = state.answers.map((k, i) => ({ i, v: QUESTIONS[i].a[k][1] })).filter(x => x.v < 10).sort((a, b) => a.v - b.v).slice(0, 3);
-
-  root.append(h(`
-    <section class="split">
-      <div class="sticky"><div class="result card" id="card">
-        <div class="face">${gradeChar(g.lv)}</div>
-        <div class="muted small">나의 보안 등급</div>
-        <div class="grade" style="color:${GRADE_COLOR[g.lv]}">${g.name}</div>
-        <div class="muted small">캐릭터 · ${g.nick}</div>
-        <div class="score">${total}<small>점</small></div>
-        <p>${g.line}</p>
-        <div class="cats">
-          ${Object.entries(cats).map(([c, arr]) => {
-            const v = Math.round(arr.reduce((a, b) => a + b, 0) / (arr.length * 10) * 100);
-            return `<div class="catrow"><span>${c}</span><div class="bar grow"><i style="width:${v}%"></i></div><b>${v}</b></div>`;
-          }).join('')}
-          ${parts.slice(1).map(p => `<div class="catrow"><span>${p.name}</span><div class="bar grow"><i style="width:${p.v}%"></i></div><b>${p.v}</b></div>`).join('')}
-        </div>
-        <div class="stamp">내 보안 몇 점?</div>
-      </div></div>
-      <div class="stack">
-      ${state.pwned > 0 ? `<div class="leakres bad"><b>🚨 검사한 비밀번호가 유출 목록에 있어요</b><p>그 비밀번호를 쓰는 계정이 있다면 가장 먼저 바꾸세요.</p></div>` : ''}
-      ${todo.length ? `<h2>지금 바로 할 일</h2><ol class="todo">${todo.map(t => `<li>${esc(QUESTIONS[t.i].tip)}<span class="src small">근거: ${esc(srcLine(QUESTIONS[t.i].src))}</span></li>`).join('')}</ol>` : '<p class="ok">할 일이 없어요. 완벽!</p>'}
-      ${state.pw == null ? '<a class="btn block" href="#/password">🔑 비밀번호 검사하고 점수에 넣기</a>' : ''}
-      ${state.quiz == null ? '<a class="btn block" href="#/phishing">📩 스미싱 퀴즈 풀고 점수에 넣기</a>' : ''}
-      <div class="row"><button class="btn primary grow" id="save">결과 이미지 저장</button><button class="btn grow" id="share">공유하기</button></div>
-      <button class="btn ghost block" id="again">처음부터 다시</button>
-      </div>
-    </section>`));
-  $('#save').onclick = () => saveImage($('#card'), 'my-security-score.png');
-  $('#share').onclick = () => shareText('내 보안 몇 점?', `내 보안 등급은 "${g.name}" (${total}점)! 너도 해 봐`, location.href.split('#')[0]);
-  $('#again').onclick = () => { state.answers = state.pw = state.quiz = state.quizN = state.pwned = null; save(); Router.go('/check'); };
 });
 
 /* ---------- 처리 방식 ---------- */
 Router.on('/about', root => {
   root.append(h(`
     <section class="stack">
-      <h1>어떻게 처리되나요?</h1>
+      <h1>어떻게 검사하나요?</h1>
       <div class="card stack">
-        <p><b>모든 계산은 내 브라우저 안에서만 해요.</b> 진단 답변, 비밀번호, 퀴즈 결과는 서버로 보내지 않고, 이 탭을 닫으면 사라져요.</p>
-        <p><b>비밀번호 검사</b>는 글자 종류·길이·흔한 패턴을 보고 "추측 공격에 버티는 시간"을 추정해요. 실제 해킹 시도가 아니에요.</p>
-        <p><b>유출 이력 확인</b>은 버튼을 눌렀을 때만 동작해요. 비밀번호로 SHA-1 해시를 만들고 <b>앞 5자리만</b> Have I Been Pwned의 Pwned Passwords 서버에 보내요(k-익명성). 서버는 그 5자리로 시작하는 수백 개의 해시 뒷자리를 돌려주고, 내 해시와 맞는지는 이 기기에서 비교해요. 서버는 내가 어떤 비밀번호를 넣었는지 알 수 없어요. 연결이 안 되면 확인만 건너뛰고 나머지는 그대로 돼요.</p>
-        <p><b>스미싱 퀴즈</b>의 기관·회사 이름과 주소는 모두 지어낸 것이에요.</p>
+        <p><b>사이트 검사는 누구나 볼 수 있는 공개 응답만 확인해요.</b> 입력한 주소의 도메인 이름만 아래 두 곳으로 보내고, 검사 대상 사이트에 공격·침투·대입 같은 시도는 하지 않아요.</p>
+        <p><b>HTTPS·보안 헤더 12종</b>은 Mozilla HTTP Observatory가 그 사이트 첫 화면을 한 번 불러와 응답 헤더를 확인한 결과예요. 같은 주소는 잠깐 동안 최근 결과를 다시 써요.</p>
+        <p><b>메일 위조 방지·도메인 보호</b>는 Google 공개 DNS에서 SPF·DMARC·DNSSEC·CAA 기록을 조회해 확인해요.</p>
+        <p><b>점수</b> = 웹 보안(Observatory 점수, 100점 상한) 70% + DNS 4개 항목(SPF 25·DMARC 35·DNSSEC 20·CAA 20) 30%. 로그인·게시판 같은 프로그램 자체의 취약점은 확인하지 않으니, 점수는 "기본 보호 장치를 얼마나 갖췄나"로 봐 주세요.</p>
+        <p><b>비밀번호 검사</b>(덤)는 이 기기 안에서만 계산해요. 유출 이력 확인 버튼을 누를 때만 비밀번호 SHA-1 해시의 <b>앞 5자리만</b> Have I Been Pwned로 보내고(k-익명성), 맞는지는 이 기기에서 비교해요.</p>
+        <p><b>스미싱 퀴즈</b>(덤)의 기관·회사 이름과 주소는 모두 지어낸 것이에요.</p>
       </div>
       <h2>근거 출처</h2>
-      <p class="muted small">진단 문항의 할 일, 퀴즈 해설, 비밀번호 기준은 아래 기관의 공개 안내를 참고해 쉬운 말로 옮겼어요.</p>
       <ul class="srclist">${Object.values(SOURCES).map(x => `<li><b>${esc(x.org)}</b> 「${esc(x.name)}」${x.more ? ` — ${esc(x.more)}` : ''}<span class="muted small"> ${esc(x.url)}</span></li>`).join('')}</ul>
-      <a class="btn primary block" href="#/check">진단하러 가기</a>
+      <a class="btn primary block" href="#/">사이트 검사하러 가기</a>
     </section>`));
 });
 
