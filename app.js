@@ -143,8 +143,18 @@ const DNS_INFO = {
 const OBS_ERR = {
   'invalid-hostname-lookup': '이 주소를 찾을 수 없어요. 철자를 확인해 주세요.',
   'invalid-site': '검사할 수 없는 주소예요. 예: example.com',
-  'site-down': '사이트가 응답하지 않아요. 잠시 뒤 다시 해 보세요.'
+  'site-down': '사이트가 응답하지 않아요. 잠시 뒤 다시 해 보세요.',
+  'timeout': '검사 서버가 45초 안에 이 사이트의 답을 못 받았어요. 아주 큰 사이트는 자동 검사에 늦게 답하기도 해요. 잠시 뒤 다시 해 보세요.'
 };
+/* Observatory는 주소의 첫 화면(https://주소/)만 검사함 → 실패 사유를 사람이 알아듣게 */
+function failText(err, host) {
+  const code = err && err.code, msg = (err && err.msg) || '';
+  const st = msg.match(/status code (\d+)/);
+  if (st) return `첫 화면(https://${host}/)이 ${st[1]} 응답(${st[1] === '404' ? '없는 페이지' : '오류'})이라 검사를 못 해요. 이 검사는 주소의 첫 화면을 기준으로 해요.`
+    + (/\.github\.io$/.test(host) ? ' 깃허브 페이지에서 "아이디.github.io/저장소" 형태로만 사이트를 올렸다면 첫 화면이 비어 있어요. 아이디.github.io 저장소에 첫 화면을 만들면 검사돼요.' : '');
+  if (/down/i.test(msg)) return '이 사이트가 검사 서버의 자동 접속을 막았거나 응답하지 않았어요. 유튜브 같은 대형 사이트는 자동 검사 접속을 막아 두는 경우가 많아요.';
+  return OBS_ERR[code] || '검사 서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 해 보세요.';
+}
 const STATUS = { bad: ['❌', '위험'], warn: ['⚠️', '주의'], ok: ['✅', '통과'], na: ['➖', '해당 없음'] };
 const ORDER = { bad: 0, warn: 1, ok: 2, na: 3 };
 
@@ -217,27 +227,33 @@ Router.on('/scan', (root, params) => {
   root.append(box);
   const done = (id, ok) => { const li = $('#' + id, box); if (li) li.className = ok ? 'done' : 'fail'; };
   const obsP = fetchJson(OBS_URL + encodeURIComponent(host), { method: 'POST' }, 45000)
-    .then(r => { if (!r || r.error || !r.scan || r.scan.error) throw Object.assign(new Error('obs'), { code: (r && (r.error || (r.scan && r.scan.error))) || 'unknown' }); return r; });
+    .catch(e => { throw Object.assign(new Error('obs'), { code: e && e.name === 'AbortError' ? 'timeout' : 'network' }); })
+    .then(r => { if (!r || r.error || !r.scan || r.scan.error) throw Object.assign(new Error('obs'), { code: (r && (r.error || (r.scan && r.scan.error))) || 'unknown', msg: r && r.message }); return r; });
   const dnsP = checkDns(host).catch(() => null);
   obsP.then(() => alive && done('st-web', true), () => alive && done('st-web', false));
   dnsP.then(r => alive && done('st-dns', !!r));
   Promise.allSettled([obsP, dnsP]).then(([o, d]) => {
     if (!alive) return;
-    if (o.status === 'rejected') return renderFail(root, host, o.reason);
+    if (o.status === 'rejected') return renderFail(root, host, o.reason, d.value);
     renderResult(root, host, o.value, d.value);
   });
   return () => { alive = false; };
 });
 
-function renderFail(root, host, err) {
-  const code = err && err.code;
+/* 웹 검사 실패. DNS는 됐으면 메일·도메인 결과만 점수 없이 보여 줌 */
+function renderFail(root, host, err, dnsItems) {
   root.innerHTML = '';
   root.append(h(`
     <section class="narrow stack center">
       <div class="hero"><div class="lock">🤔</div></div>
-      <h2>${esc(host)} 검사를 못 했어요</h2>
-      <p class="muted">${esc(OBS_ERR[code] || '검사 서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 해 보세요.')}</p>
+      <h2>${esc(host)} 웹 보안 검사를 못 했어요</h2>
+      <p class="muted">${esc(failText(err, host))}</p>
       ${scanForm(host)}
+      ${dnsItems ? `<div class="stack partial" style="text-align:left">
+        <h3>대신 메일 위조 방지·도메인 보호는 확인했어요</h3>
+        <p class="small muted">웹 보안을 못 봐서 점수는 매기지 않았어요.</p>
+        <ul class="items">${sortItems(dnsItems).map(itemRow).join('')}</ul>
+      </div>` : ''}
     </section>`));
   bindForm(root);
   Sfx.play('bad');
